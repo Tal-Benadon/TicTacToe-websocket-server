@@ -44,6 +44,7 @@ io.on('connection', (socket) => {
 
     socket.on("join-game", (data) => {
         let roomId = String(data.gameCode)
+
         socket.join(roomId)
         // console.log(doesRoomExist(roomId));
 
