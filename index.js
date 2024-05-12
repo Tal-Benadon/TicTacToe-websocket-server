@@ -44,18 +44,21 @@ io.on('connection', (socket) => {
 
     socket.on("join-game", (data) => {
         let roomId = String(data.gameCode)
-
-        socket.join(roomId)
-        // console.log(doesRoomExist(roomId));
-
-        console.log(rooms[roomId].users);
-        rooms[roomId]?.users?.push(data.userId)
-        updateUsersCount(rooms[data.gameCode])
-        let room = io.sockets.adapter.rooms.get(roomId)
-        if (room.has(socket.id)) {
-            socket.emit("join-data", { success: true, members: io.sockets.adapter.rooms.get(roomId).size })
+        if (rooms[roomId].inRoom === 2) {
+            socket.emit("full-room", { success: false, alert: "Room is already full" })
         } else {
-            socket.emit("join-data", { success: false, alert: "Could not connect" })
+            socket.join(roomId)
+
+            console.log(rooms[roomId].users);
+            rooms[roomId]?.users?.push(data.userId)
+            updateUsersCount(rooms[data.gameCode])
+            let room = io.sockets.adapter.rooms.get(roomId)
+            if (room.has(socket.id)) {
+                console.log(rooms);
+                socket.emit("join-data", { success: true, members: io.sockets.adapter.rooms.get(roomId).size })
+            } else {
+                socket.emit("join-data", { success: false, alert: "Could not connect" })
+            }
         }
     })
 })
