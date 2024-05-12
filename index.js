@@ -63,9 +63,7 @@ io.on('connection', (socket) => {
         socket.join(roomId) //send the id to the join, and to the client
         socket.roomCode = roomId //setting player1 defaultRoom
 
-        socket.roomCode = roomId;
-
-        rooms[roomId] = { users: [{ userId: { userId: data.userId } }], capacity: 2 }
+        rooms[roomId] = { users: [{ userId: data.userId }], capacity: 2 }
         updateUsersCount(rooms[roomId])
         console.log(rooms);
         socket.emit("create-game", { roomId })
@@ -82,16 +80,12 @@ io.on('connection', (socket) => {
 
             socket.roomCode = roomId;
 
-
-            socket.roomCode = roomId
             console.log(rooms[roomId].users);
-            rooms[roomId]?.users?.push({ userId: { userId: data.userId } })
+            rooms[roomId]?.users?.push({ userId: data.userId })
             updateUsersCount(rooms[data.gameCode])
             let room = io.sockets.adapter.rooms.get(roomId)
             if (room.has(socket.id)) {
                 io.to(roomId).emit("join-data", { roomId: roomId, success: true, members: io.sockets.adapter.rooms.get(roomId).size })
-
-
             } else {
                 socket.emit("join-data", { success: false, alert: "Could not connect" })
             }
@@ -99,16 +93,13 @@ io.on('connection', (socket) => {
     })
 
 
-    socket.on("choise-symbol", (data) => {
-        console.log("my choise: ", data)
-
+    socket.on("symbol-choice", (data) => {
+        console.log("my choice: ", data)
         let roomId = socket.roomCode;
 
         console.log(roomId)
-
         const myUserId = rooms[roomId].users.find(user => socket.id === user.userId);
 
-        // console.log(myUserId)
 
         myUserId.symbol = data
 
@@ -118,8 +109,8 @@ io.on('connection', (socket) => {
 
         opponent.symbol = setSymbol(data)
 
-        console.log("hi", opponent)
-        console.log("hi2", myUserId)
+        console.log(opponent)
+        console.log(myUserId)
 
         // socket.to(roomId).emit("sides-chosen", {complete : true, player2Symbol})
     })
