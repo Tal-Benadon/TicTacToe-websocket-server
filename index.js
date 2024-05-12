@@ -14,7 +14,6 @@ app.get('/test', (req, res) => res.send("Yessss"))
 const rooms = {}
 
 function getRandomId() {
-
     return Math.floor(100000 + Math.random() * 900000)
 }
 
@@ -33,8 +32,14 @@ io.on('connection', (socket) => {
         console.log("Received user Id", data.userId);
         let roomId = String(getRandomId())
 
+
+
+
         socket.join(roomId) //send the id to the join, and to the client
-        rooms[roomId] = { users: [data.userId], capacity: 2 }
+
+        socket.roomCode = roomId;
+
+        rooms[roomId] = { users: [{ userId: data.userId }], capacity: 2 }
         updateUsersCount(rooms[roomId])
         console.log(rooms);
         socket.emit("create-game", { roomId })
@@ -49,20 +54,57 @@ io.on('connection', (socket) => {
         } else {
             socket.join(roomId)
 
+            socket.roomCode = roomId;
+
+
             console.log(rooms[roomId].users);
-            rooms[roomId]?.users?.push(data.userId)
+            rooms[roomId]?.users?.push({ userId: data.userId })
             updateUsersCount(rooms[data.gameCode])
             let room = io.sockets.adapter.rooms.get(roomId)
             if (room.has(socket.id)) {
                 console.log(rooms);
-                socket.emit("join-data", { success: true, members: io.sockets.adapter.rooms.get(roomId).size })
+                io.to(roomId).emit("join-data", { success: true, members: io.sockets.adapter.rooms.get(roomId).size })
             } else {
                 socket.emit("join-data", { success: false, alert: "Could not connect" })
             }
         }
     })
+
+
+    socket.on("choise-symbol", (data) => {
+        console.log("my choise: ", data)
+
+        let roomId = socket.roomCode;
+
+        console.log(roomId)
+
+        const myUserId = rooms[roomId].users.find(user => socket.id === user.userId);
+
+        // console.log(myUserId)
+
+        myUserId.symbol = data
+
+        // console.log(myUserId)
+
+        const opponent = rooms[roomId].users.find(user => socket.id !== user.userId);
+
+        opponent.symbol = setSymbol(data)
+
+        console.log(opponent)
+        console.log(myUserId)
+        
+        // socket.to(roomId).emit("sides-chosen", {complete : true, player2Symbol})
+    })
+
 })
 
-
+const setSymbol = (data) => {
+    if (data === "X") {
+        return "O"
+    }
+    if (data === "O") {
+        return "X"
+    }
+}
 
 server.listen(3000, () => console.log("listening on port 3000"))
