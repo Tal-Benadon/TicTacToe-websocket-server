@@ -11,7 +11,32 @@ const io = new Server(server, { cors: { origin: "*", methods: "*" } })
 
 app.get('/test', (req, res) => res.send("Yessss"))
 
+
+
+const createBoard = () => {
+    let gameBoard = []
+    let iterations = 3
+    for (let i = 0; i < iterations; i++) {
+        let buttonRow = []
+        for (let j = 0; j < iterations; j++) {
+            buttonRow.push({
+                symbol: '',
+                animationTrigger: 0,
+                isInactive: false,
+                location: [i, j]
+            })
+        }
+        gameBoard.push(buttonRow)
+    }
+    return gameBoard
+}
+
+
 const rooms = {}
+
+
+
+
 
 function getRandomId() {
 
@@ -34,7 +59,8 @@ io.on('connection', (socket) => {
         let roomId = String(getRandomId())
 
         socket.join(roomId) //send the id to the join, and to the client
-        rooms[roomId] = { users: [data.userId], capacity: 2 }
+        socket.roomCode = roomId //setting player1 defaultRoom
+        rooms[roomId] = { users: [{ userId: data.userId }], capacity: 2 }
         updateUsersCount(rooms[roomId])
         console.log(rooms);
         socket.emit("create-game", { roomId })
@@ -42,20 +68,21 @@ io.on('connection', (socket) => {
         io.to(roomId).emit("gamejoin-alert", `${data.userId} joined room number ${roomId}`)
     })
 
-    socket.on("join-game", (data) => {
+    socket.on("join-game", (data) => { //Player 2 tries to join
         let roomId = String(data.gameCode)
         if (rooms[roomId].inRoom === 2) {
             socket.emit("full-room", { success: false, alert: "Room is already full" })
         } else {
             socket.join(roomId)
-
+            socket.roomCode = roomId
             console.log(rooms[roomId].users);
-            rooms[roomId]?.users?.push(data.userId)
+            rooms[roomId]?.users?.push({ userId: data.userId })
             updateUsersCount(rooms[data.gameCode])
             let room = io.sockets.adapter.rooms.get(roomId)
             if (room.has(socket.id)) {
-                console.log(rooms);
-                socket.emit("join-data", { success: true, members: io.sockets.adapter.rooms.get(roomId).size })
+                io.to(roomId).emit("join-data", { roomId: roomId, success: true, members: io.sockets.adapter.rooms.get(roomId).size })
+
+
             } else {
                 socket.emit("join-data", { success: false, alert: "Could not connect" })
             }
@@ -66,3 +93,7 @@ io.on('connection', (socket) => {
 
 
 server.listen(3000, () => console.log("listening on port 3000"))
+
+
+
+// users: [{id: 'm78f0Jam6mIagUpAAAAK', symbol: X },{}    ]
