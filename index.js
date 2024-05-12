@@ -8,28 +8,11 @@ app.use(cors())
 
 const server = createServer(app)
 const io = new Server(server, { cors: { origin: "*", methods: "*" } })
-
+const { createBoard } = require('./functions')
 app.get('/test', (req, res) => res.send("Yessss"))
 
 
 
-const createBoard = () => {
-    let gameBoard = []
-    let iterations = 3
-    for (let i = 0; i < iterations; i++) {
-        let buttonRow = []
-        for (let j = 0; j < iterations; j++) {
-            buttonRow.push({
-                symbol: '',
-                animationTrigger: 0,
-                isInactive: false,
-                location: [i, j]
-            })
-        }
-        gameBoard.push(buttonRow)
-    }
-    return gameBoard
-}
 
 
 const rooms = {}
@@ -67,28 +50,33 @@ io.on('connection', (socket) => {
         updateUsersCount(rooms[roomId])
         console.log(rooms);
         socket.emit("create-game", { roomId })
-        io.to(roomId).emit("game-code", { gameCode: roomId })
-        io.to(roomId).emit("gamejoin-alert", `${data.userId} joined room number ${roomId}`)
+        io.in(roomId).emit("game-code", { gameCode: roomId })
+        io.in(roomId).emit("gamejoin-alert", `${data.userId} joined room number ${roomId}`)
     })
 
     socket.on("join-game", (data) => { //Player 2 tries to join
         let roomId = String(data.gameCode)
-        if (rooms[roomId].inRoom === 2) {
-            socket.emit("full-room", { success: false, alert: "Room is already full" })
-        } else {
-            socket.join(roomId)
+        if (rooms[roomId] && Array.isArray(rooms[roomId].users)) {
 
-            socket.roomCode = roomId;
-
-            console.log(rooms[roomId].users);
-            rooms[roomId]?.users?.push({ userId: data.userId })
-            updateUsersCount(rooms[data.gameCode])
-            let room = io.sockets.adapter.rooms.get(roomId)
-            if (room.has(socket.id)) {
-                io.to(roomId).emit("join-data", { roomId: roomId, success: true, members: io.sockets.adapter.rooms.get(roomId).size })
+            if (rooms[roomId].inRoom === 2) {
+                socket.emit("full-room", { success: false, alert: "Room is already full" })
             } else {
-                socket.emit("join-data", { success: false, alert: "Could not connect" })
+                socket.join(roomId)
+
+                socket.roomCode = roomId;
+
+                console.log(rooms[roomId].users);
+                rooms[roomId]?.users?.push({ userId: data.userId })
+                updateUsersCount(rooms[data.gameCode])
+                let room = io.sockets.adapter.rooms.get(roomId)
+                if (room.has(socket.id)) {
+                    io.to(roomId).emit("join-data", { roomId: roomId, success: true, members: io.sockets.adapter.rooms.get(roomId).size })
+                } else {
+                    socket.emit("join-data", { success: false, alert: "Could not connect" })
+                }
             }
+        } else {
+            socket.emit("incorrect-code", { alert: "Room doesnt exists, try a different code" })
         }
     })
 
@@ -112,7 +100,22 @@ io.on('connection', (socket) => {
         console.log(opponent)
         console.log(myUserId)
 
-        // socket.to(roomId).emit("sides-chosen", {complete : true, player2Symbol})
+        socket.on("sides-chosen", (data) => {
+            if (data.complete) {
+                let roomId = socket.roomCode;
+                let complete = data.complete
+                console.log(data.chosenSymbol);
+                let chosenSymbol = data.chosenSymbol
+
+                let opponentSymbol = setSymbol(chosenSymbol)
+
+                rooms[roomId].gameBoard = createBoard()
+                socket.to(roomId).emit("sides-chosen", { complete, opponentSymbol })
+                let newGameBoard = rooms[roomId].gameBoard
+                io.in(roomId).emit("create-board", { gameBoard: newGameBoard })
+            }
+        })
+
     })
 
 })
