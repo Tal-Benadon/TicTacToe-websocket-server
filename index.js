@@ -39,7 +39,6 @@ const rooms = {}
 
 
 function getRandomId() {
-
     return Math.floor(100000 + Math.random() * 900000)
 }
 
@@ -58,9 +57,15 @@ io.on('connection', (socket) => {
         console.log("Received user Id", data.userId);
         let roomId = String(getRandomId())
 
+
+
+
         socket.join(roomId) //send the id to the join, and to the client
         socket.roomCode = roomId //setting player1 defaultRoom
-        rooms[roomId] = { users: [{ userId: data.userId }], capacity: 2 }
+
+        socket.roomCode = roomId;
+
+        rooms[roomId] = { users: [{ userId: { userId: data.userId } }], capacity: 2 }
         updateUsersCount(rooms[roomId])
         console.log(rooms);
         socket.emit("create-game", { roomId })
@@ -74,9 +79,13 @@ io.on('connection', (socket) => {
             socket.emit("full-room", { success: false, alert: "Room is already full" })
         } else {
             socket.join(roomId)
+
+            socket.roomCode = roomId;
+
+
             socket.roomCode = roomId
             console.log(rooms[roomId].users);
-            rooms[roomId]?.users?.push({ userId: data.userId })
+            rooms[roomId]?.users?.push({ userId: { userId: data.userId } })
             updateUsersCount(rooms[data.gameCode])
             let room = io.sockets.adapter.rooms.get(roomId)
             if (room.has(socket.id)) {
@@ -88,9 +97,43 @@ io.on('connection', (socket) => {
             }
         }
     })
+
+
+    socket.on("choise-symbol", (data) => {
+        console.log("my choise: ", data)
+
+        let roomId = socket.roomCode;
+
+        console.log(roomId)
+
+        const myUserId = rooms[roomId].users.find(user => socket.id === user.userId);
+
+        // console.log(myUserId)
+
+        myUserId.symbol = data
+
+        // console.log(myUserId)
+
+        const opponent = rooms[roomId].users.find(user => socket.id !== user.userId);
+
+        opponent.symbol = setSymbol(data)
+
+        console.log("hi", opponent)
+        console.log("hi2", myUserId)
+
+        // socket.to(roomId).emit("sides-chosen", {complete : true, player2Symbol})
+    })
+
 })
 
-
+const setSymbol = (data) => {
+    if (data === "X") {
+        return "O"
+    }
+    if (data === "O") {
+        return "X"
+    }
+}
 
 server.listen(3000, () => console.log("listening on port 3000"))
 
