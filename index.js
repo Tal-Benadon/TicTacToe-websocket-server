@@ -46,7 +46,7 @@ io.on('connection', (socket) => {
         socket.join(roomId) //send the id to the join, and to the client
         socket.roomCode = roomId //setting player1 defaultRoom
 
-        rooms[roomId] = { users: [{ userId: data.userId }], capacity: 2 }
+        rooms[roomId] = { users: [{ userId: data.userId }], capacity: 2, replay: [] }
         updateUsersCount(rooms[roomId])
         // console.log(rooms);
         socket.emit("create-game", { roomId })
@@ -111,28 +111,45 @@ io.on('connection', (socket) => {
 
                 rooms[roomId].gameBoard = createBoard()
                 rooms[roomId].movesCounter = 0
-                console.log(rooms[roomId].gameBoard);
+                // console.log(rooms[roomId].gameBoard);
                 socket.to(roomId).emit("sides-chosen", { complete, opponentSymbol })
-                let newGameBoard = rooms[roomId].gameBoard
-                rooms[roomId].currentTurn = rooms[roomId].users.find(user => user.symbol === 'X').userId
-                // console.log(rooms[roomId]);
-                let initialTurn = rooms[roomId].currentTurn
-                io.in(roomId).emit("create-board", { gameBoard: newGameBoard, initialTurn })
+
+
             }
         })
 
 
     })
 
+    socket.on('player2Ready', () => {
+        let roomId = socket.roomCode
+        console.log("player 2 is ready");
+        socket.to(roomId).emit("player2IsReady", { success: true })
+    })
+
+    // socket.on('player2Ready', () => {
+    //     console.log("WHAT'S UP");
+
+    //     // socket.emit('player2Ready')
+    //     // let newGameBoard = rooms[roomId].gameBoard
+    //     // rooms[roomId].currentTurn = rooms[roomId].users.find(user => user.symbol === 'X').userId
+    //     // // console.log(rooms[roomId]);
+    //     // let initialTurn = rooms[roomId].currentTurn
+    //     // io.in(roomId).emit("create-board", { gameBoard: newGameBoard, initialTurn })
+    // })
+
     socket.on("game-move", (data) => {
         let roomId = socket.roomCode;
+        console.log(rooms);
+        console.log(rooms[roomId]);
         let roomBoard = rooms[roomId].gameBoard
         let location = data.location
         let symbol = data.mySymbol
         rooms[roomId].gameEnded = false
         let result = updateSymbol(location[0], location[1], symbol, roomBoard)
-        console.log(result);
+        // console.log(result);
         if (result) {
+
             rooms[roomId].movesCounter++
             rooms[roomId].gameBoard = result
             let gameBoard = rooms[roomId].gameBoard
@@ -141,6 +158,7 @@ io.on('connection', (socket) => {
             io.in(roomId).emit("game-move", { gameBoard: rooms[roomId].gameBoard, newTurn: rooms[roomId].currentTurn })
             // let gameEnded = false
             let gameWinner = null
+
             if (checkUp) {
                 rooms[roomId].gameBoard = checkUp.gameBoard
                 rooms[roomId].gameEnded = checkUp.gameEnded
@@ -157,11 +175,43 @@ io.on('connection', (socket) => {
         } else {
             socket.emit("illegal-move", { illegal: true, alert: "Illegal move" })
         }
-        // console.log(rooms[roomId]);
-        // console.log(rooms[roomId].gameBoard);
+
+    })
+
+    socket.on("play-again", () => {
+        let roomId = socket.roomCode;
+
+        let replay = rooms[roomId].replay
+        replay.push(socket.id)
+        console.log("replay?", rooms[roomId].replay);
+        let result = shouldReplay(replay)
+        if (result) {
+            replayReset(roomId)
+            console.log(rooms);
+            rooms[roomId].currentTurn = rooms[roomId].users.find(user => user.symbol === 'X').userId
+            io.in(roomId).emit("playing-again", { gameBoard: rooms[roomId].gameBoard, gameEnded: rooms[roomId].gameEnded, currentTurn: rooms[roomId].currentTurn })
+            rooms[roomId].replay = []
+        } else {
+            socket.emit("waiting-replay", { alert: "Waiting..." })
+        }
     })
 
 })
+
+const shouldReplay = (replayRoom) => {
+    if (replayRoom.length === 2) {
+        return true
+    } else {
+        return false
+    }
+}
+
+const replayReset = (roomId) => {
+    rooms[roomId].gameBoard = createBoard()
+    rooms[roomId].gameEnded = false
+    rooms[roomId].movesCounter = 0
+
+}
 
 const setSymbol = (data) => {
     if (data === "X") {
