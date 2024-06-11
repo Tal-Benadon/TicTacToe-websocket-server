@@ -39,14 +39,14 @@ io.on('connection', (socket) => {
     socket.on('create-game', (data) => {
         console.log("Received user Id", data.userId);
         let roomId = String(getRandomId())
-
+        let displayName = data.userName
 
 
 
         socket.join(roomId) //send the id to the join, and to the client
         socket.roomCode = roomId //setting player1 defaultRoom
 
-        rooms[roomId] = { users: [{ userId: data.userId }], capacity: 2, replay: [] }
+        rooms[roomId] = { users: [{ userId: data.userId, wins: 0, displayName }], capacity: 2, replay: [] }
         updateUsersCount(rooms[roomId])
         // console.log(rooms);
         socket.emit("create-game", { roomId })
@@ -56,6 +56,7 @@ io.on('connection', (socket) => {
 
     socket.on("join-game", (data) => { //Player 2 tries to join
         let roomId = String(data.gameCode)
+        let displayName = data.userName
         if (rooms[roomId] && Array.isArray(rooms[roomId].users)) {
 
             if (rooms[roomId].inRoom === 2) {
@@ -66,7 +67,7 @@ io.on('connection', (socket) => {
                 socket.roomCode = roomId;
 
                 // console.log(rooms[roomId].users);
-                rooms[roomId]?.users?.push({ userId: data.userId })
+                rooms[roomId]?.users?.push({ userId: data.userId, wins: 0, displayName })
                 updateUsersCount(rooms[data.gameCode])
                 let room = io.sockets.adapter.rooms.get(roomId)
                 if (room.has(socket.id)) {
@@ -121,27 +122,39 @@ io.on('connection', (socket) => {
 
     })
 
-    socket.on('player2Ready', () => {
+    socket.on('player2Ready', (data) => {
         let roomId = socket.roomCode
-        console.log("player 2 is ready");
-        socket.to(roomId).emit("player2IsReady", { success: true })
+        if (data.success) {
+
+            socket.to(roomId).emit("player2IsReady", { success: true })
+
+        }
+
     })
 
+
+    socket.on('both-ready', (data) => {
+        if (data.status) {
+            let roomId = socket.roomCode
+            let newGameBoard = rooms[roomId].gameBoard
+            rooms[roomId].currentTurn = rooms[roomId].users.find(user => user.symbol === 'X').userId
+            // console.log(rooms[roomId]);
+            let initialTurn = rooms[roomId].currentTurn
+            const roomUsers = rooms[roomId].users
+            io.in(roomId).emit("create-board", { gameBoard: newGameBoard, initialTurn, roomUsers })
+        }
+    })
     // socket.on('player2Ready', () => {
     //     console.log("WHAT'S UP");
 
     //     // socket.emit('player2Ready')
-    //     // let newGameBoard = rooms[roomId].gameBoard
-    //     // rooms[roomId].currentTurn = rooms[roomId].users.find(user => user.symbol === 'X').userId
-    //     // // console.log(rooms[roomId]);
-    //     // let initialTurn = rooms[roomId].currentTurn
-    //     // io.in(roomId).emit("create-board", { gameBoard: newGameBoard, initialTurn })
+
     // })
 
     socket.on("game-move", (data) => {
         let roomId = socket.roomCode;
-        console.log(rooms);
-        console.log(rooms[roomId]);
+        // console.log(rooms);
+        // console.log(rooms[roomId]);
         let roomBoard = rooms[roomId].gameBoard
         let location = data.location
         let symbol = data.mySymbol
@@ -163,8 +176,13 @@ io.on('connection', (socket) => {
                 rooms[roomId].gameBoard = checkUp.gameBoard
                 rooms[roomId].gameEnded = checkUp.gameEnded
                 let gameEnded = rooms[roomId].gameEnded
+
                 gameWinner = checkUp.gameWinner
-                io.in(roomId).emit("game-end", { gameEnded: gameEnded, gameWinner: gameWinner, gameBoard: rooms[roomId].gameBoard })
+                let winnerUser = rooms[roomId].users.find(user => user.symbol === gameWinner)
+                winnerUser.wins++
+                let roomUsers = rooms[roomId].users
+                console.log("userId", winnerUser.userId);
+                io.in(roomId).emit("game-end", { gameEnded: gameEnded, gameWinner: { userId: winnerUser.userId, symbol: gameWinner }, roomUsers, gameBoard: rooms[roomId].gameBoard })
             }
             if (!checkUp && rooms[roomId].movesCounter === 9) {
                 rooms[roomId].gameEnded = true
@@ -183,11 +201,11 @@ io.on('connection', (socket) => {
 
         let replay = rooms[roomId].replay
         replay.push(socket.id)
-        console.log("replay?", rooms[roomId].replay);
+        // console.log("replay?", rooms[roomId].replay);
         let result = shouldReplay(replay)
         if (result) {
             replayReset(roomId)
-            console.log(rooms);
+            // console.log(rooms);
             rooms[roomId].currentTurn = rooms[roomId].users.find(user => user.symbol === 'X').userId
             io.in(roomId).emit("playing-again", { gameBoard: rooms[roomId].gameBoard, gameEnded: rooms[roomId].gameEnded, currentTurn: rooms[roomId].currentTurn })
             rooms[roomId].replay = []
