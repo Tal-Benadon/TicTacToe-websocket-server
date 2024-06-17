@@ -40,13 +40,14 @@ io.on('connection', (socket) => {
         console.log("Received user Id", data.userId);
         let roomId = String(getRandomId())
         let displayName = data.userName
-
+        let displayImageIndex = data.imageIndex
 
 
         socket.join(roomId) //send the id to the join, and to the client
         socket.roomCode = roomId //setting player1 defaultRoom
 
-        rooms[roomId] = { users: [{ userId: data.userId, wins: 0, displayName }], capacity: 2, replay: [] }
+        rooms[roomId] = { users: [{ userId: data.userId, wins: 0, displayName, displayImageIndex }], capacity: 2, replay: [] }
+
         updateUsersCount(rooms[roomId])
         // console.log(rooms);
         socket.emit("create-game", { roomId })
@@ -54,9 +55,28 @@ io.on('connection', (socket) => {
         io.in(roomId).emit("gamejoin-alert", `${data.userId} joined room number ${roomId}`)
     })
 
+    socket.on('clear-connection', () => {
+        let userId = socket.id
+        let roomId = socket.roomCode
+
+        let roomUsers = rooms[roomId]?.users
+        if (roomUsers) {
+            rooms[roomId].users = rooms[roomId].users.filter(user => user.userId !== userId)
+            console.log("Cleared Connection");
+
+            if (rooms[roomId].users.length < 1) {
+                delete rooms[roomId]
+                console.log("Cleared Connection and deleted Room");
+
+            }
+
+        }
+    })
+
     socket.on("join-game", (data) => { //Player 2 tries to join
         let roomId = String(data.gameCode)
         let displayName = data.userName
+        let displayImageIndex = data.imageIndex
         if (rooms[roomId] && Array.isArray(rooms[roomId].users)) {
 
             if (rooms[roomId].inRoom === 2) {
@@ -66,8 +86,8 @@ io.on('connection', (socket) => {
 
                 socket.roomCode = roomId;
 
-                // console.log(rooms[roomId].users);
-                rooms[roomId]?.users?.push({ userId: data.userId, wins: 0, displayName })
+
+                rooms[roomId]?.users?.push({ userId: data.userId, wins: 0, displayName, displayImageIndex })
                 updateUsersCount(rooms[data.gameCode])
                 let room = io.sockets.adapter.rooms.get(roomId)
                 if (room.has(socket.id)) {
@@ -83,36 +103,35 @@ io.on('connection', (socket) => {
 
 
     socket.on("symbol-choice", (data) => {
-        // console.log("my choice: ", data)
+
         let roomId = socket.roomCode;
 
-        // console.log(roomId)
+
         const myUserId = rooms[roomId].users.find(user => socket.id === user.userId);
 
 
         myUserId.symbol = data
 
-        // console.log(myUserId)
+
 
         const opponent = rooms[roomId].users.find(user => socket.id !== user.userId);
 
         opponent.symbol = setSymbol(data)
 
-        // console.log(opponent)
-        // console.log(myUserId)
+
 
         socket.on("sides-chosen", (data) => {
             if (data.complete) {
                 let roomId = socket.roomCode;
                 let complete = data.complete
-                // console.log(data.chosenSymbol);
+
                 let chosenSymbol = data.chosenSymbol
 
                 let opponentSymbol = setSymbol(chosenSymbol)
 
                 rooms[roomId].gameBoard = createBoard()
                 rooms[roomId].movesCounter = 0
-                // console.log(rooms[roomId].gameBoard);
+                    ;
                 socket.to(roomId).emit("sides-chosen", { complete, opponentSymbol })
 
 
@@ -144,17 +163,17 @@ io.on('connection', (socket) => {
             io.in(roomId).emit("create-board", { gameBoard: newGameBoard, initialTurn, roomUsers })
         }
     })
-    // socket.on('player2Ready', () => {
-    //     console.log("WHAT'S UP");
 
-    //     // socket.emit('player2Ready')
-
-    // })
 
     socket.on("game-move", (data) => {
         let roomId = socket.roomCode;
-        // console.log(rooms);
-        // console.log(rooms[roomId]);
+        console.log(roomId);
+        console.log(socket.id);
+        let room = io.sockets.adapter.rooms.get(roomId)
+        if (room.has(socket.id)) {
+            console.log(room);
+            console.log("hello");
+        }
         let roomBoard = rooms[roomId].gameBoard
         let location = data.location
         let symbol = data.mySymbol
@@ -167,6 +186,9 @@ io.on('connection', (socket) => {
             rooms[roomId].gameBoard = result
             let gameBoard = rooms[roomId].gameBoard
             let checkUp = checkBoard(gameBoard, location[0], location[1], symbol)
+            rooms[roomId].users.forEach(user => {
+                console.log(user);
+            });
             rooms[roomId].currentTurn = rooms[roomId].users.find(user => user.userId !== socket.id).userId
             io.in(roomId).emit("game-move", { gameBoard: rooms[roomId].gameBoard, newTurn: rooms[roomId].currentTurn })
             // let gameEnded = false
@@ -194,6 +216,31 @@ io.on('connection', (socket) => {
             socket.emit("illegal-move", { illegal: true, alert: "Illegal move" })
         }
 
+    })
+
+    socket.on('recollect-user-info', (data) => {
+        console.log("", data.userId);
+        console.log("", data.roomId);
+        let userRoom = rooms[data.roomId]
+        if (userRoom) {
+            //In Socket.IO, the socket.id is a read-only property that is automatically generated by the server to uniquely identify each socket connection. Therefore, you cannot directly assign a value to socket.id like socket.id = data.userId.
+            //REDIFINE USERID, MAYBE GENERATE AN ID MYSELF AND PUT IN LOCAL STORAGE, THEN USE IT TO IDENTIFY AND TRY JOINING IT.
+            let user = userRoom.users.find(user => user.userId === data.userId)
+            let opponent = userRoom.users.find(user => user.userId !== data.userId)
+            let gameBoard = userRoom.gameBoard
+            let currentTurn = userRoom.currentTurn
+            socket.roomCode = data.roomId
+            socket.id = data.userId
+            socket.join(data.roomId)
+            socket.emit('refresh-user-info', { userInfo: user, opponentInfo: opponent, gameBoard, currentTurn })
+        }
+    })
+
+    socket.on("backing-user", () => {
+        let roomId = socket.roomCode
+        console.log(roomId);
+        console.log("hi");
+        socket.to(roomId).emit("user-backed", { alert: 'opponent left the game' })
     })
 
     socket.on("play-again", () => {

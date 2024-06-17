@@ -19,9 +19,9 @@ const createBoard = () => {
 
 
 const updateSymbol = (row, col, symbol, gameBoard) => {
-    console.log(gameBoard[row][col]);
+    // console.log(gameBoard[row][col]);
     if (!gameBoard[row][col].isPlayed) {
-        console.log("hihihihihi");
+        // console.log("hihihihihi");
         gameBoard[row][col].symbol = symbol
         gameBoard[row][col].isPlayed = true
         return [...gameBoard]
